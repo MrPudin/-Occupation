@@ -86,9 +86,9 @@ int read_motion()
     uBit.io.P0.setPull(PullDown);
     int sensor_value = uBit.io.P0.getAnalogValue();
 
-    dprintf("read motion: sensor read: %d\r\n", sensor_value);
-
     if(sensor_value == 255) return -1;
+
+    dprintf("read motion: sensor read: %d\r\n", sensor_value);
 
     return sensor_value;
 }
