@@ -132,6 +132,38 @@ void onData(MicroBitEvent e)
     }
 }
 
+//Display
+void display_occupancy()
+{
+    occupy_status status = network_query_status();
+    if(status == occupy_status_occupied)
+    {
+        calibrate_display_ambient();
+        uBit.display.print(display_image_occupied);
+        uBit.sleep(1000);
+        uBit.display.scroll("Occupied",OCCUPY_DISPLAY_SCROLL_SPEED);
+        uBit.display.clear();
+    }
+    else if(status == occupy_status_vacant)
+    {
+        calibrate_display_ambient();
+        uBit.display.print(display_image_vacant);
+        uBit.sleep(1000);
+        uBit.display.scroll("Vacant",OCCUPY_DISPLAY_SCROLL_SPEED);
+        uBit.display.clear();
+    }
+    else
+    {
+        calibrate_display_ambient();
+        uBit.display.print("?");
+        uBit.sleep(1000);
+        uBit.display.scroll("Unknown",OCCUPY_DISPLAY_SCROLL_SPEED);
+        uBit.display.clear();
+    }
+
+}
+
+
 //Event Handlers
 void onButtonAB(MicroBitEvent e)
 {
@@ -163,34 +195,7 @@ void onButtonA(MicroBitEvent e)
             radio_group --;
             uBit.display.scroll(radio_group,OCCUPY_DISPLAY_SCROLL_SPEED);
         }
-        else
-        {
-            occupy_status status = network_query_status();
-            if(status == occupy_status_occupied)
-            {
-                calibrate_display_ambient();
-                uBit.display.print(display_image_occupied);
-                uBit.sleep(1000);
-                uBit.display.scroll("Occupied",OCCUPY_DISPLAY_SCROLL_SPEED);
-                uBit.display.clear();
-            }
-            else if(status == occupy_status_vacant)
-            {
-                calibrate_display_ambient();
-                uBit.display.print(display_image_vacant);
-                uBit.sleep(1000);
-                uBit.display.scroll("Vacant",OCCUPY_DISPLAY_SCROLL_SPEED);
-                uBit.display.clear();
-            }
-            else
-            {
-                calibrate_display_ambient();
-                uBit.display.print("?");
-                uBit.sleep(1000);
-                uBit.display.scroll("Unknown",OCCUPY_DISPLAY_SCROLL_SPEED);
-                uBit.display.clear();
-            }
-        }
+        else display_occupancy();
     }
 }
 
@@ -211,6 +216,14 @@ void onButtonB(MicroBitEvent e)
     }
 }
 
+void onTouchP0(MicroBitEvent e)
+{
+    if(e.value == MICROBIT_BUTTON_EVT_DOWN)
+    {
+        display_occupancy();
+    }
+}
+
 int main()
 {
     uBit.init();
@@ -219,6 +232,9 @@ int main()
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_EVT_ANY, onButtonB);
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_AB, MICROBIT_EVT_ANY, onButtonAB);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
+    uBit.messageBus.listen(MICROBIT_ID_IO_P0, MICROBIT_EVT_ANY, onTouchP0);
+
+    uBit.io.P0.isTouched();
 
     uBit.display.readLightLevel();
 
