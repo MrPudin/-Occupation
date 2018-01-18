@@ -5,27 +5,72 @@
 #include "MicroBit.h"
 #include "occupy.h"
 
+
 MicroBit uBit;
 
 static int radio_group = OCCUPY_RADIO_GROUP;
 static bool changing_group = false;
 static occupy_status measure_status = occupy_status_unknown;
 
+//Storage
+void commit_state()
+{
+    uBit.storage.put(occupy_storage_group, (uint8_t *) &radio_group, sizeof(int));
+    uBit.storage.put(occupy_storage_status, (uint8_t *) &measure_status, sizeof(occupy_status));
+}
 
+void load_state()
+{
+    KeyValuePair* group_data = uBit.storage.get(occupy_storage_group);
+    KeyValuePair* status_data = uBit.storage.get(occupy_storage_status);
+
+    if(group_data)
+        memcpy(&radio_group, group_data->value, sizeof(int));
+    else if(status_data)
+        memcpy(&measure_status, status_data->value, sizeof(occupy_status));
+}
+
+void clear_state()
+{
+    uBit.storage.remove(occupy_storage_group);
+    uBit.storage.remove(occupy_storage_status);
+}
+
+//IO
 int read_average_u(int (*rfunc)(), int count, int udelay)
 {
     long sum = 0;
-    dprintf("delay: %d\r\n", udelay);
+    int value  = 0;
+    int fail_count = 0;
+    int delay;
     for(int i = 0; i < count; i++)
     {
-        sum += (*rfunc)();
-        
-        if(udelay >= 1000)
+        delay = udelay;
+
+        value = (*rfunc)();
+        if(value == -1)
         {
-            fiber_sleep(1);
-            udelay -= 1000;
+            i --; 
+            fail_count ++;
+            continue;
         }
-        else wait_us(udelay);
+        else if(fail_count > OCCUPY_IO_READ_FAIL_LIMIT)
+        {
+            dprint("Too many consecutive IO read problems, resetting Microbit...");
+            commit_state();
+            uBit.reset();
+        }
+        else 
+        {
+            sum += value;
+            fail_count = 0;
+        }
+
+        
+        for(; delay >= 1000; delay -= 1000)
+            fiber_sleep(1);
+
+        wait_us(delay);
     }
 
     return sum / count;
@@ -38,8 +83,12 @@ int read_average(int (*rfunc)(), int count, int mdelay)
 
 int read_motion()
 {
+    uBit.io.P0.setPull(PullDown);
     int sensor_value = uBit.io.P0.getAnalogValue();
-    //dprintf("read motion: sensor read: %d\r\n", sensor_value);
+
+    dprintf("read motion: sensor read: %d\r\n", sensor_value);
+
+    if(sensor_value == 255) return -1;
 
     return sensor_value;
 }
@@ -66,11 +115,13 @@ void measure_occupation()
     {
         dprint("measure status: occupied");
         measure_status = occupy_status_occupied;
+        uBit.display.printChar('O');
     }
     else 
     {
         dprint("measure status: vacant");
         measure_status = occupy_status_vacant;
+        uBit.display.printChar('V');
     }
 }
 
@@ -79,6 +130,9 @@ void onButtonAB(MicroBitEvent e)
 {
     if(e.value == MICROBIT_BUTTON_EVT_HOLD)
     {
+        dprint("Clearing persistent state");
+        clear_state();
+        
         if(!changing_group)
         {
             dprint("changing group");
@@ -158,22 +212,25 @@ void onData(MicroBitEvent e)
 int main()
 {
     uBit.init();
+    
+    load_state();
 
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_A, MICROBIT_EVT_ANY, onButtonA);
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_EVT_ANY, onButtonB);
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_AB, MICROBIT_EVT_ANY, onButtonAB);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
     
-
+    uBit.display.readLightLevel();
     uBit.radio.setGroup(radio_group);
     uBit.radio.enable();
-    
-    uBit.display.readLightLevel();
+
+    dprintf("radio: set group to %d\r\n", radio_group);
+    dprint("Setup Complete");
     uBit.display.printChar('I');
 
-    
     while(1)
     {
         measure_occupation();
+        commit_state();
     }
 }
