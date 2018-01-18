@@ -22,6 +22,26 @@ static transmit_status tstatus = transmit_status_null;
 static occupy_status room_status = occupy_status_unknown;
 static bool ping_ack = false;
 
+//Storage
+void commit_state()
+{
+    uBit.storage.put(occupy_storage_group, (uint8_t *) &radio_group, sizeof(int));
+}
+
+void load_state()
+{
+    KeyValuePair* group_data = uBit.storage.get(occupy_storage_group);
+
+    if(group_data)
+        memcpy(&radio_group, group_data->value, sizeof(int));
+}
+
+void clear_state()
+{
+    uBit.storage.remove(occupy_storage_group);
+}
+
+//Display
 static MicroBitImage display_image_occupied("\
         0 1 1 1 0\n\
         1 1 1 1 1\n\
@@ -169,6 +189,7 @@ void onButtonAB(MicroBitEvent e)
 {
     if(e.value == MICROBIT_BUTTON_EVT_HOLD)
     {
+        clear_state();
         if(!changing_group)
         {
             dprint("changing group");
@@ -182,6 +203,7 @@ void onButtonAB(MicroBitEvent e)
             
             dprintf("Changed Group to %d\r\n", radio_group);
             uBit.radio.setGroup(radio_group);
+            commit_state();
         }
     }
 }
@@ -215,6 +237,7 @@ void onButtonB(MicroBitEvent e)
         }
     }
 }
+    
 
 void onTouchP0(MicroBitEvent e)
 {
@@ -228,6 +251,8 @@ int main()
 {
     uBit.init();
 
+    load_state();
+
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_A, MICROBIT_EVT_ANY, onButtonA);
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_EVT_ANY, onButtonB);
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_AB, MICROBIT_EVT_ANY, onButtonAB);
@@ -235,13 +260,16 @@ int main()
     uBit.messageBus.listen(MICROBIT_ID_IO_P0, MICROBIT_EVT_ANY, onTouchP0);
 
     uBit.io.P0.isTouched();
+    uBit.io.P0.setPull(PullDown);
 
     uBit.display.readLightLevel();
+    calibrate_display_ambient();
 
     //Setup Interfaces
     uBit.radio.setGroup(radio_group);
     uBit.radio.disable();
-
+    
+    dprintf("radio: set group to %d\r\n", radio_group);
     dprint("Setup Complete");
     
     release_fiber();
