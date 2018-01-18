@@ -20,7 +20,6 @@ signaler: signaler.cpp
 	yt build
 
 sinstall: 
-	#cp build/$(DIR)/source/$(TARGET)-combined.hex  /Volumes/MICROBIT
 	cp build/$(DIR)/source/$(TARGET)-combined.hex  "/Volumes/MICROBIT 1"
 
 iinstall: 
