@@ -7,14 +7,15 @@
 
 #ifndef __OCCUPY_H__
 #define __OCCUPY_H__ value
-/* Default Radio Group */
-#define OCCUPY_RADIO_GROUP 80
 
+#define OCCUPY_RADIO_GROUP 80 /* Default Radio Group */
 #define OCCUPY_RADIO_TIMEOUT 200
 
-#define OCCUPY_MEASURE_READ_COUNT 1000
-#define OCCUPY_MEASURE_THRESHOLD 256
-#define OCCUPY_MEASURE_DELAY 100
+#define OCCUPY_IO_READ_FAIL_LIMIT 1000
+
+#define OCCUPY_MEASURE_READ_COUNT 150
+#define OCCUPY_MEASURE_THRESHOLD 500
+#define OCCUPY_MEASURE_DELAY 50
 
 #define OCCUPY_DISPLAY_SCROLL_SPEED 65
 
@@ -28,6 +29,10 @@ typedef enum
 const char *occupy_transmit_query = "^@?";
 const char *occupy_transmit_ping = "^@P";
 const char *occupy_transmit_ack = "^@A";
+
+
+const char *occupy_storage_group = "RADIO_GROUP";
+const char *occupy_storage_status = "STATUS";
 
 /* DEBUG PRINT */
 #ifdef DEBUG
