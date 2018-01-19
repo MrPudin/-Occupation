@@ -123,6 +123,8 @@ void measure_occupation()
         measure_status = occupy_status_vacant;
         uBit.display.printChar('V');
     }
+
+    commit_state();
 }
 
 //Event Handlers
@@ -130,22 +132,22 @@ void onButtonAB(MicroBitEvent e)
 {
     if(e.value == MICROBIT_BUTTON_EVT_HOLD)
     {
-        dprint("Clearing persistent state");
-        clear_state();
-        
         if(!changing_group)
         {
             dprint("changing group");
-            uBit.display.scroll("Change Group:");
-            uBit.display.scroll(radio_group);
+            uBit.display.scroll("Change Group:",OCCUPY_DISPLAY_SCROLL_SPEED);
+            uBit.display.scroll(radio_group,OCCUPY_DISPLAY_SCROLL_SPEED);
             changing_group = true;
         }
         else if(changing_group)
         {
             changing_group = false;
-            
-            dprintf("Changed Group to %d\r\n", radio_group);
+
             uBit.radio.setGroup(radio_group);
+            uBit.display.scroll("Group:", OCCUPY_DISPLAY_SCROLL_SPEED);
+            uBit.display.scroll(radio_group, OCCUPY_DISPLAY_SCROLL_SPEED);
+            commit_state();
+            dprintf("Changed Group to %d\r\n", radio_group);
         }
     }
 }
@@ -157,7 +159,7 @@ void onButtonA(MicroBitEvent e)
         if(changing_group)
         {
             radio_group --;
-            uBit.display.scroll(radio_group);
+            uBit.display.scroll(radio_group,OCCUPY_DISPLAY_SCROLL_SPEED);
         }
     }
 }
@@ -170,7 +172,7 @@ void onButtonB(MicroBitEvent e)
         if(changing_group)
         {
             radio_group ++;
-            uBit.display.scroll(radio_group);
+            uBit.display.scroll(radio_group,OCCUPY_DISPLAY_SCROLL_SPEED);
         }
     }
 }

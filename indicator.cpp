@@ -200,9 +200,12 @@ void onButtonAB(MicroBitEvent e)
         else if(changing_group)
         {
             changing_group = false;
-            
-            dprintf("Changed Group to %d\r\n", radio_group);
+
             uBit.radio.setGroup(radio_group);
+
+            uBit.display.scroll("Group:", OCCUPY_DISPLAY_SCROLL_SPEED);
+            uBit.display.scroll(radio_group, OCCUPY_DISPLAY_SCROLL_SPEED);
+            dprintf("Changed Group to %d\r\n", radio_group);
             commit_state();
         }
     }
@@ -238,15 +241,6 @@ void onButtonB(MicroBitEvent e)
     }
 }
     
-
-void onTouchP0(MicroBitEvent e)
-{
-    if(e.value == MICROBIT_BUTTON_EVT_DOWN)
-    {
-        display_occupancy();
-    }
-}
-
 int main()
 {
     uBit.init();
@@ -257,9 +251,7 @@ int main()
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_EVT_ANY, onButtonB);
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_AB, MICROBIT_EVT_ANY, onButtonAB);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
-    uBit.messageBus.listen(MICROBIT_ID_IO_P0, MICROBIT_EVT_ANY, onTouchP0);
 
-    uBit.io.P0.isTouched();
     uBit.io.P0.setPull(PullDown);
 
     uBit.display.readLightLevel();

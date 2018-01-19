@@ -22,7 +22,7 @@ signaler: signaler.cpp
 sinstall: 
 	cp build/$(DIR)/source/$(TARGET)-combined.hex  "/Volumes/MICROBIT 1"
 
-iinstall: 
+install: 
 	cp build/$(DIR)/source/$(TARGET)-combined.hex  /Volumes/MICROBIT
 
 clean:
