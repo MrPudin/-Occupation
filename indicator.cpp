@@ -60,7 +60,8 @@ void calibrate_display_ambient()
 {
     uBit.display.clear();
     int ambient_light = uBit.display.readLightLevel();
-    uBit.display.setBrightness(ambient_light);
+    int brightness = (ambient_light > OCCUPY_DISPLAY_MIN_BRIGHTNESS) ? ambient_light : OCCUPY_DISPLAY_MIN_BRIGHTNESS;
+    uBit.display.setBrightness(brightness);
 }
 
 //Networking
@@ -240,6 +241,14 @@ void onButtonB(MicroBitEvent e)
         }
     }
 }
+
+void onTouch(MicroBitEvent e)
+{
+    if(e.value == MICROBIT_BUTTON_EVT_DOWN)
+    {
+        display_occupancy();
+    }
+}
     
 int main()
 {
@@ -251,8 +260,8 @@ int main()
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_EVT_ANY, onButtonB);
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_AB, MICROBIT_EVT_ANY, onButtonAB);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
-
-    uBit.io.P0.setPull(PullDown);
+    uBit.messageBus.listen(MICROBIT_ID_IO_P0, MICROBIT_EVT_ANY, onTouch);
+    uBit.io.P0.isTouched(); //Enable touch detection 
 
     uBit.display.readLightLevel();
     calibrate_display_ambient();

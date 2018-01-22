@@ -2,10 +2,9 @@
  * signaler.cpp
  * Occupation - Signaler Server
 */
+#include <cmath>
 #include "MicroBit.h"
 #include "occupy.h"
-
-
 MicroBit uBit;
 
 static int radio_group = OCCUPY_RADIO_GROUP;
@@ -36,96 +35,210 @@ void clear_state()
     uBit.storage.remove(occupy_storage_status);
 }
 
-//IO
-int read_average_u(int (*rfunc)(), int count, int udelay)
+// Read Functions: Return value between 0 -1024 or -1 
+// Returns -1 if read has error
+int read_motion() //PIR motion sensor on Pin 0
 {
-    long sum = 0;
-    int value  = 0;
-    int fail_count = 0;
-    int delay;
-    for(int i = 0; i < count; i++)
-    {
-        delay = udelay;
-
-        value = (*rfunc)();
-        if(value == -1)
-        {
-            i --; 
-            fail_count ++;
-            continue;
-        }
-        else if(fail_count > OCCUPY_IO_READ_FAIL_LIMIT)
-        {
-            dprint("Too many consecutive IO read problems, resetting Microbit...");
-            commit_state();
-            uBit.reset();
-        }
-        else 
-        {
-            sum += value;
-            fail_count = 0;
-        }
-
-        
-        for(; delay >= 1000; delay -= 1000)
-            fiber_sleep(1);
-
-        wait_us(delay);
-    }
-
-    return sum / count;
-}
-
-int read_average(int (*rfunc)(), int count, int mdelay)
-{
-    return read_average_u(rfunc, count, mdelay * 1000);
-}
-
-int read_motion()
-{
-    uBit.io.P0.setPull(PullDown);
     int sensor_value = uBit.io.P0.getAnalogValue();
-
     if(sensor_value == 255) return -1;
 
-    dprintf("read motion: sensor read: %d\r\n", sensor_value);
+    //dprintf("read motion: sensor read: %d\r\n", sensor_value);
 
     return sensor_value;
 }
 
-int read_light()
+int read_light() //Light sensor on Pin 1
 {
-    int sensor_value = uBit.display.readLightLevel();
-    //dprintf("read light: sensor read: %d\r\n", sensor_value);
+    int sensor_value = uBit.io.P1.getAnalogValue();
+    //    dprintf("read light: sensor read: %d\r\n", sensor_value);
+    if(sensor_value == 255) return -1;
 
     return sensor_value;
 }
 
-//Display
-//Messurement
-void measure_occupation()
+int read_sound() //Sound sensor on Pin 2
 {
-    uBit.display.printChar('M');
+    int sensor_value = uBit.io.P2.getAnalogValue();
+    if(sensor_value == 255) return -1;
+    //dprintf("read sound: sensor read: %d\r\n", sensor_value);
 
-    int motion_avg = read_average(&read_motion, OCCUPY_MEASURE_READ_COUNT,\
-            OCCUPY_MEASURE_DELAY);
-    
-    dprintf("measure status: measure complete: %d\r\n", motion_avg);
-    if(motion_avg  >= OCCUPY_MEASURE_THRESHOLD)
+    return sensor_value;
+}
+
+//Data 
+int comp_mean(int *data, int len)
+{
+    int sum = 0;
+    for(int i = 0; i < len; i++)
     {
-        dprint("measure status: occupied");
-        measure_status = occupy_status_occupied;
+        sum += data[i];
+    }
+  
+    return sum / len;
+}
+
+double comp_std_dev(int *data, int len, int mean=0)
+{
+    if(mean == 0) mean = comp_mean(data, len);
+
+    int sum = 0, diff;
+    for(int i = 0; i < len; i ++)
+    {
+        diff =  data[i]  - mean;
+        sum += (diff * diff);
+    }
+
+    double sq_dev = (double) sum / (double) len;
+    return sqrt(sq_dev);
+}
+
+void gather_data(int (*rfunc)(), int *data,int len, int delay_ms)
+{
+    int rst = 0;
+    int cdelay; 
+    for(int i = 0; i < len; i++)
+    {
+        cdelay = delay_ms;
+        rst = (*rfunc)();
+        if(rst == -1)
+        {
+            i--;
+            continue;
+        }
+
+        data[i] = rst;
+    
+        //Wait delay
+        for(; cdelay >= 6; cdelay -= 6) uBit.sleep(6);
+        wait_ms(cdelay);
+    }
+    
+    dprintf("gather_data(): Gathered data of size: %d\r\n",len);
+}
+
+void __listen_data__(void *input)
+{
+    //Expand Args
+    void **args = (void **)input;
+    int (*rfunc)() =  (int (*)()) args[0];
+    void (*callback)(int *,int) = (void (*)(int *,int)) args[1];
+
+    int *data = new int[OCCUPY_DATA_SAMPLE_SIZE];
+    
+    while(1)
+    {
+        memset(data, 0, sizeof(int) * OCCUPY_DATA_SAMPLE_SIZE); //Clear Data
+        gather_data(rfunc, data, OCCUPY_DATA_SAMPLE_SIZE, OCCUPY_DATA_SAMPLE_DELAY);
+        
+        (*callback)(data, OCCUPY_DATA_SAMPLE_SIZE);
+
+    }
+}
+
+void listen_data(int (*rfunc)(), void (*callback)(int *,int))
+{
+    void **input = new void *[2];
+    input[0] = (void *)rfunc;
+    input[1] = (void *)callback;
+ 
+    create_fiber(&__listen_data__, input);
+}
+
+//Callbacks
+bool motion_status = false;
+bool light_status = false;
+bool sound_status = false;
+
+void sound_callback(int *data, int len)
+{
+    int dev = comp_std_dev(data, len);
+    dprintf("sound_callback(): Computed standard deviation: %d\r\n", dev);
+    
+    if(dev > OCCUPY_DATA_SOUND_THRESHOLD)
+        sound_status = true;
+    else
+        sound_status = false;
+
+    dprintf("sound_callback(): sound detection result: %d\r\n", (int)sound_status);
+}
+
+void light_callback(int *data, int len)
+{
+    static int prev_dev = -1;
+    static int light_level = 300;
+
+    if(!light_status)
+    {
+        int dev = comp_std_dev(data, len);
+        dprintf("light(): Computed standard deviation: %d\r\n", dev);
+        
+        if(prev_dev != -1) //Not the first computation
+        {
+            dprintf("light(): Computed standard deviation diff: %d\r\n", abs(dev-prev_dev));
+            if(abs(dev - prev_dev) > OCCUPY_DATA_LIGHT_TOLERANCE) 
+            {
+                light_status = true;
+                light_level = comp_mean(data, len);
+            }
+            else
+            {
+                light_status = false;
+            }
+        }
+        
+        prev_dev = (light_status) ? -1 : dev;
+    }
+    else
+    {
+        int mean = comp_mean(data, len);
+
+        dprintf("light_status(): Computed mean: %d\r\n", mean);
+
+        if(mean < light_level)
+        {
+            light_status = false;
+            light_level = 0;
+        }
+    }
+    dprintf("light_callback(): light detection result: %d\r\n", (int)light_status);
+}
+
+void motion_callback(int *data, int len)
+{
+    motion_status = false;
+    for(int i = 0; i < len; i++)
+    {
+        if(data[i] > OCCUPY_DATA_MOTION_THRESHOLD)
+        {
+            motion_status = true;
+            break;
+        }
+    }
+    dprintf("motion_callback(): motion detection result: %d\r\n", (int)motion_status);
+}
+
+void update_measure_status()
+{
+    if(!motion_status & !light_status && !sound_status)
+    {
+        measure_status = occupy_status_vacant; 
+        uBit.display.printChar('V');
+        //dprint(" Measure Status: Vacant");
+    }
+    else if(motion_status || light_status || sound_status)
+    {
+        measure_status = occupy_status_occupied; 
         uBit.display.printChar('O');
+        //dprint(" Measure Status: Occupied ");
     }
     else 
     {
-        dprint("measure status: vacant");
-        measure_status = occupy_status_vacant;
-        uBit.display.printChar('V');
+        measure_status = occupy_status_unknown;
+        uBit.display.printChar('?');
+        //dprint(" Measure Status: Unknown ");
     }
-
-    commit_state();
 }
+
 
 //Event Handlers
 void onButtonAB(MicroBitEvent e)
@@ -228,11 +341,19 @@ int main()
 
     dprintf("radio: set group to %d\r\n", radio_group);
     dprint("Setup Complete");
+    
+    if(read_light() > 300) light_status = true;
+    
     uBit.display.printChar('I');
-
+    
+    listen_data(&read_motion, &motion_callback);
+    listen_data(&read_sound, &sound_callback);
+    listen_data(&read_light, &light_callback);
+    
+    
     while(1)
     {
-        measure_occupation();
-        commit_state();
+        update_measure_status();
+        uBit.sleep(1000 * 1);
     }
 }
