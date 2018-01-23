@@ -56,15 +56,6 @@ int read_light() //Light sensor on Pin 1
     return sensor_value;
 }
 
-int read_sound() //Sound sensor on Pin 2
-{
-    int sensor_value = uBit.io.P2.getAnalogValue();
-    if(sensor_value == 255) return -1;
-    //dprintf("read sound: sensor read: %d\r\n", sensor_value);
-
-    return sensor_value;
-}
-
 //Data 
 int comp_mean(int *data, int len)
 {
@@ -131,7 +122,6 @@ void __listen_data__(void *input)
         gather_data(rfunc, data, OCCUPY_DATA_SAMPLE_SIZE, OCCUPY_DATA_SAMPLE_DELAY);
         
         (*callback)(data, OCCUPY_DATA_SAMPLE_SIZE);
-
     }
 }
 
@@ -149,28 +139,22 @@ bool motion_status = false;
 bool light_status = false;
 bool sound_status = false;
 
-void sound_callback(int *data, int len)
-{
-    int dev = comp_std_dev(data, len);
-    dprintf("sound_callback(): Computed standard deviation: %d\r\n", dev);
-    
-    if(dev > OCCUPY_DATA_SOUND_THRESHOLD)
-        sound_status = true;
-    else
-        sound_status = false;
-
-    dprintf("sound_callback(): sound detection result: %d\r\n", (int)sound_status);
-}
-
 void light_callback(int *data, int len)
 {
     static int prev_dev = -1;
     static int light_level = 300;
+    static bool first_data = true;
+
+    if(first_data) 
+    {
+        first_data = false;
+        return;
+    }
 
     if(!light_status)
     {
         int dev = comp_std_dev(data, len);
-        dprintf("light(): Computed standard deviation: %d\r\n", dev);
+        dprintf("light_callback(): Computed standard deviation: %d\r\n", dev);
         
         if(prev_dev != -1) //Not the first computation
         {
@@ -337,6 +321,7 @@ int main()
     
     uBit.display.readLightLevel();
     uBit.radio.setGroup(radio_group);
+    uBit.radio.setTransmitPower(OCCUPY_RADIO_TRANSMIT_POWER);
     uBit.radio.enable();
 
     dprintf("radio: set group to %d\r\n", radio_group);
@@ -344,12 +329,13 @@ int main()
     
     if(read_light() > 300) light_status = true;
     
-    uBit.display.printChar('I');
-    
     listen_data(&read_motion, &motion_callback);
-    listen_data(&read_sound, &sound_callback);
+
+    uBit.sleep(uBit.random(2000));
     listen_data(&read_light, &light_callback);
+
     
+    uBit.display.printChar('I');
     
     while(1)
     {
