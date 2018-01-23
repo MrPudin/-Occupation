@@ -101,13 +101,15 @@ occupy_status network_query_status()
     dprint("Query Status: transmitted query for occupy status, waiting for response.");
 
     fiber_sleep(OCCUPY_RADIO_TIMEOUT);
-    
+
     if(room_status != occupy_status_unknown)
     {
         dprint("Query Status: got response for query.");
     }
     else
     {
+        if(!network_ping()) uBit.display.scroll("NO SIGNAL",OCCUPY_DISPLAY_SCROLL_SPEED);
+
         dprint("Query Status: Failed to get response for query."); 
     }
 
@@ -234,22 +236,10 @@ void onButtonB(MicroBitEvent e)
             radio_group ++;
             uBit.display.scroll(radio_group,OCCUPY_DISPLAY_SCROLL_SPEED);
         }
-        else
-        {
-            if(!network_ping()) uBit.display.scroll("NO SIGNAL",OCCUPY_DISPLAY_SCROLL_SPEED);
-            else uBit.display.scroll("OK",OCCUPY_DISPLAY_SCROLL_SPEED);
-        }
+        else display_occupancy();
     }
 }
 
-void onTouch(MicroBitEvent e)
-{
-    if(e.value == MICROBIT_BUTTON_EVT_DOWN)
-    {
-        display_occupancy();
-    }
-}
-    
 int main()
 {
     uBit.init();
@@ -260,14 +250,13 @@ int main()
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_EVT_ANY, onButtonB);
     uBit.messageBus.listen(MICROBIT_ID_BUTTON_AB, MICROBIT_EVT_ANY, onButtonAB);
     uBit.messageBus.listen(MICROBIT_ID_RADIO, MICROBIT_RADIO_EVT_DATAGRAM, onData);
-    uBit.messageBus.listen(MICROBIT_ID_IO_P0, MICROBIT_EVT_ANY, onTouch);
-    uBit.io.P0.isTouched(); //Enable touch detection 
 
     uBit.display.readLightLevel();
     calibrate_display_ambient();
 
     //Setup Interfaces
     uBit.radio.setGroup(radio_group);
+    uBit.radio.setTransmitPower(OCCUPY_RADIO_TRANSMIT_POWER);
     uBit.radio.disable();
     
     dprintf("radio: set group to %d\r\n", radio_group);
