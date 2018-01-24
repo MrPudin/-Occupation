@@ -50,9 +50,9 @@ int read_motion() //PIR motion sensor on Pin 0
 int read_light() //Light sensor on Pin 1
 {
     int sensor_value = uBit.io.P1.getAnalogValue();
-    //    dprintf("read light: sensor read: %d\r\n", sensor_value);
     if(sensor_value == 255) return -1;
 
+    //dprintf("read light: sensor read: %d\r\n", sensor_value);
     return sensor_value;
 }
 
@@ -142,7 +142,7 @@ bool sound_status = false;
 void light_callback(int *data, int len)
 {
     static int prev_dev = -1;
-    static int light_level = 300;
+    static int light_level = OCCUPY_DATA_LIGHT_THRESHOLD;
     static bool first_data = true;
 
     if(first_data) 
@@ -327,12 +327,12 @@ int main()
     dprintf("radio: set group to %d\r\n", radio_group);
     dprint("Setup Complete");
     
-    if(read_light() > 300) light_status = true;
+    if(read_light() > OCCUPY_DATA_LIGHT_THRESHOLD) light_status = true;
     
-    listen_data(&read_motion, &motion_callback);
+    listen_data(&read_light, &light_callback);
 
     uBit.sleep(uBit.random(2000));
-    listen_data(&read_light, &light_callback);
+    listen_data(&read_motion, &motion_callback);
 
     
     uBit.display.printChar('I');
