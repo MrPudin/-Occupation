@@ -162,7 +162,7 @@ void light_callback(int *data, int len)
             if(abs(dev - prev_dev) > OCCUPY_DATA_LIGHT_TOLERANCE) 
             {
                 light_status = true;
-                light_level = comp_mean(data, len);
+                light_level = max(comp_mean(data, len), OCCUPY_DATA_LIGHT_THRESHOLD);
             }
             else
             {
@@ -181,7 +181,7 @@ void light_callback(int *data, int len)
         if(mean < light_level)
         {
             light_status = false;
-            light_level = 0;
+            light_level = OCCUPY_DATA_MOTION_THRESHOLD;
         }
     }
     dprintf("light_callback(): light detection result: %d\r\n", (int)light_status);
@@ -341,5 +341,10 @@ int main()
     {
         update_measure_status();
         uBit.sleep(1000 * 1);
+
+        if(uBit.systemTime() > 1000 * 60 * 60 * 6)
+        {
+            uBit.reset();
+        }
     }
 }
