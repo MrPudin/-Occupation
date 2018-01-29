@@ -68,21 +68,6 @@ int comp_mean(int *data, int len)
     return sum / len;
 }
 
-double comp_std_dev(int *data, int len, int mean=0)
-{
-    if(mean == 0) mean = comp_mean(data, len);
-
-    int sum = 0, diff;
-    for(int i = 0; i < len; i ++)
-    {
-        diff =  data[i]  - mean;
-        sum += (diff * diff);
-    }
-
-    double sq_dev = (double) sum / (double) len;
-    return sqrt(sq_dev);
-}
-
 void gather_data(int (*rfunc)(), int *data,int len, int delay_ms)
 {
     int rst = 0;
@@ -141,49 +126,12 @@ bool sound_status = false;
 
 void light_callback(int *data, int len)
 {
-    static int prev_dev = -1;
-    static int light_level = OCCUPY_DATA_LIGHT_THRESHOLD;
-    static bool first_data = true;
+    light_status = false;
 
-    if(first_data) 
-    {
-        first_data = false;
-        return;
-    }
+    int mean = comp_mean(data, len);
+    dprintf("light_callback(): computed mean: %d\r\n", (int)mean);
+    if(mean  > OCCUPY_DATA_LIGHT_THRESHOLD) light_status = true;
 
-    if(!light_status)
-    {
-        int dev = comp_std_dev(data, len);
-        dprintf("light_callback(): Computed standard deviation: %d\r\n", dev);
-        
-        if(prev_dev != -1) //Not the first computation
-        {
-            dprintf("light(): Computed standard deviation diff: %d\r\n", abs(dev-prev_dev));
-            if(abs(dev - prev_dev) > OCCUPY_DATA_LIGHT_TOLERANCE) 
-            {
-                light_status = true;
-                light_level = max(comp_mean(data, len), OCCUPY_DATA_LIGHT_THRESHOLD);
-            }
-            else
-            {
-                light_status = false;
-            }
-        }
-        
-        prev_dev = (light_status) ? -1 : dev;
-    }
-    else
-    {
-        int mean = comp_mean(data, len);
-
-        dprintf("light_status(): Computed mean: %d\r\n", mean);
-
-        if(mean < light_level)
-        {
-            light_status = false;
-            light_level = OCCUPY_DATA_MOTION_THRESHOLD;
-        }
-    }
     dprintf("light_callback(): light detection result: %d\r\n", (int)light_status);
 }
 
@@ -325,15 +273,14 @@ int main()
     uBit.radio.enable();
 
     dprintf("radio: set group to %d\r\n", radio_group);
-    dprint("Setup Complete");
     
     if(read_light() > OCCUPY_DATA_LIGHT_THRESHOLD) light_status = true;
     
     listen_data(&read_light, &light_callback);
-
     uBit.sleep(uBit.random(2000));
     listen_data(&read_motion, &motion_callback);
 
+    dprint("Setup Complete");
     
     uBit.display.printChar('I');
     
