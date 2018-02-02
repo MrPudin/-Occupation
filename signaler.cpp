@@ -289,9 +289,6 @@ int main()
         update_measure_status();
         uBit.sleep(1000 * 1);
 
-        if(uBit.systemTime() > 1000 * 60 * 60 * 6)
-        {
-            uBit.reset();
-        }
+        if(uBit.systemTime() > 1000 * 60 * 60 * 4) { uBit.reset(); }
     }
 }
